@@ -5,7 +5,7 @@ use std::fs::File;
 use std::io::{BufRead, BufReader};
 
 // HERE
-use cudarc::driver::{CudaDevice, DriverError, LaunchAsync, LaunchConfig};
+use cudarc::driver::{CudaDevice, DriverError, LaunchAsync, LaunchConfig, CudaFunction};
 use cudarc::nvrtc::compile_ptx;
 // HERE
 
@@ -26,8 +26,10 @@ const TOTAL_CLASS:  usize = 2;
 const PTX_SRC: &str = "
 extern \"C\" __global__ void matmul(float* A, float* B, float* C, int N) {
     int i = threadIdx.x;
-    float temp = A[i] - B[i];
-    C[i] = temp * temp;
+    if (i < N) {
+        float temp = A[i] - B[i];
+        C[i] = temp * temp;
+    }
 }
 ";
 // HERE
@@ -77,8 +79,7 @@ impl PointDistance<'_> {
 }
 
 
-
-fn knn(target: &p32, dataset: &[p32; DATASET_SIZE]) -> p32 {
+fn knn(target: &p32, dataset: &[p32; DATASET_SIZE], dev: &std::sync::Arc<CudaDevice>, f: &CudaFunction) -> p32 {
 
     let mut selected_points: [PointDistance; K] = [PointDistance::new(); K];
     let mut class_counter: [u32; TOTAL_CLASS] = [0; TOTAL_CLASS];
@@ -89,7 +90,7 @@ fn knn(target: &p32, dataset: &[p32; DATASET_SIZE]) -> p32 {
         let test_distance_point = PointDistance {
             point: Some(&dataset[i]),
             distance: Some(
-                euclidian(target, &dataset[i])
+                euclidian(target, &dataset[i], dev, f)
             ),
         };
 
@@ -144,12 +145,12 @@ fn knn(target: &p32, dataset: &[p32; DATASET_SIZE]) -> p32 {
 
 // Iterate through each point
 fn knn_vec(target: &[p32; TESTSET_SIZE],
-    dataset: &[p32; DATASET_SIZE]) -> [p32; TESTSET_SIZE] {
+    dataset: &[p32; DATASET_SIZE], dev: &std::sync::Arc<CudaDevice>, f: &CudaFunction) -> [p32; TESTSET_SIZE] {
 
     let mut guess: [p32; TESTSET_SIZE] = [p32::new(); TESTSET_SIZE];
 
     for i in 0..TESTSET_SIZE {
-        guess[i] = knn(&target[i], dataset);
+        guess[i] = knn(&target[i], dataset, dev, f);
     }
 
     return guess;
@@ -157,33 +158,43 @@ fn knn_vec(target: &[p32; TESTSET_SIZE],
 }
 
 // Returns the euclidian distance between two points a and b.
-fn euclidian(a: &p32, b: &p32) -> f32 {
+fn euclidian(a: &p32, b: &p32, dev: &std::sync::Arc<CudaDevice>, f: &CudaFunction) -> f32 {
 
 
     // let a_host = [1.0f32, 2.0, 3.0, 4.0];
     // let b_host = [1.0f32, 2.0, 3.0, 4.0];
-    let a_host = a.point
-        .iter()
-        .filter_map(|point_option| point_option.clone())
-        .collect();
-    let b_host = b.point
-        .iter()
-        .filter_map(|point_option| point_option.clone())
-        .collect();
-    let mut c_host = [0.0f32; K];
+    let mut a_host: [f32; FEATURE_SIZE] = [0.0f32; FEATURE_SIZE];
+    let mut b_host: [f32; FEATURE_SIZE] = [0.0f32; FEATURE_SIZE];
 
-    let a_dev = dev.htod_sync_copy(&a_host).unwrap();
-    let b_dev = dev.htod_sync_copy(&b_host).unwrap();
-    let mut c_dev = dev.htod_sync_copy(&c_host).unwrap();
+    for (value_idx, value) in a.point.iter().enumerate() {
+        a_host[value_idx] = value.unwrap();
+    }
+    for (value_idx, value) in b.point.iter().enumerate() {
+        b_host[value_idx] = value.unwrap();
+    }
+
+    // let a_host = a.point
+    //     .iter()
+    //     .filter_map(|point_option| point_option.clone())
+    //     .collect();
+    // let b_host = b.point
+    //     .iter()
+    //     .filter_map(|point_option| point_option.clone())
+    //     .collect();
+    let mut c_host = [0.0f32; FEATURE_SIZE];
+
+    let a_dev = (*dev).htod_sync_copy(&a_host).unwrap();
+    let b_dev = (*dev).htod_sync_copy(&b_host).unwrap();
+    let mut c_dev = (*dev).htod_sync_copy(&c_host).unwrap();
 
     // println!("Copied in {:?}", start.elapsed());
 
     let cfg = LaunchConfig {
-        block_dim: (1, 1, 1),
+        block_dim: (FEATURE_SIZE as u32, 1, 1),
         grid_dim: (1, 1, 1),
         shared_mem_bytes: 0,
     };
-    unsafe { f.launch(cfg, (&a_dev, &b_dev, &mut c_dev, K)) }.unwrap();
+    unsafe { (*f).clone().launch(cfg, (&a_dev, &b_dev, &mut c_dev, FEATURE_SIZE)) }.unwrap();
 
     dev.dtoh_sync_copy_into(&c_dev, &mut c_host).unwrap();
 
@@ -282,7 +293,7 @@ fn main() -> Result<(), DriverError> {
     let ptx = compile_ptx(PTX_SRC).unwrap();
     println!("Compilation succeeded in {:?}", start.elapsed());
 
-    let dev = CudaDevice::new(0)?;
+    let dev: std::sync::Arc<CudaDevice> = CudaDevice::new(0)?;
     println!("Built in {:?}", start.elapsed());
 
     dev.load_ptx(ptx, "matmul", &["matmul"])?;
@@ -302,7 +313,7 @@ fn main() -> Result<(), DriverError> {
     // Load testvector set
     let testset = load_testset(path_to_testset);
     // perform knn on testset
-    let guesses = knn_vec(&testset, &dataset);
+    let guesses = knn_vec(&testset, &dataset, &dev, &f);
     // evaluate the accuracy
     let accuracy = evalulate_accuracy(&testset, &guesses);
     println!("Accuracy: {}", accuracy);
