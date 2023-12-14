@@ -219,8 +219,8 @@ fn load_dataset(path: &str) -> [p32; DATASET_SIZE] {
 }
 
 fn main() {
-    let path_to_dataset = "";
-    let path_to_testset = "";
+    let path_to_dataset = "/Users/rb/School/CS217/knn_cuda/assets/sample_train.csv";
+    let path_to_testset = "/Users/rb/School/CS217/knn_cuda/assets/sample_test.csv";
     // Load dataset
     let dataset = load_dataset(path_to_dataset);
     // Load testvector set
