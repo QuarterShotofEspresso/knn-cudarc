@@ -4,8 +4,10 @@
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 
+// HERE
 use cudarc::driver::{CudaDevice, DriverError, LaunchAsync, LaunchConfig};
 use cudarc::nvrtc::compile_ptx;
+// HERE
 
 // Define the Feature Size
 // SMALL_TEST
@@ -20,24 +22,15 @@ const TESTSET_SIZE: usize = 48;
 const K:            usize = 50;
 const TOTAL_CLASS:  usize = 2;
 
-
+// HERE
 const PTX_SRC: &str = "
 extern \"C\" __global__ void matmul(float* A, float* B, float* C, int N) {
-int ROW = blockIdx.y*blockDim.y+threadIdx.y;
-int COL = blockIdx.x*blockDim.x+threadIdx.x;
-
-float tmpSum = 0;
-
-if (ROW < N && COL < N) {
-    // each thread computes one element of the block sub-matrix
-    for (int i = 0; i < N; i++) {
-        tmpSum += A[ROW * N + i] * B[i * N + COL];
-    }
-}
-// printf(\"pos, (%d, %d) - N %d - value %d\\n\", ROW, COL, N, tmpSum);
-C[ROW * N + COL] = tmpSum;
+    int i = threadIdx.x;
+    float temp = A[i] - B[i];
+    C[i] = temp * temp;
 }
 ";
+// HERE
 
 
 // Point structure
@@ -165,13 +158,44 @@ fn knn_vec(target: &[p32; TESTSET_SIZE],
 
 // Returns the euclidian distance between two points a and b.
 fn euclidian(a: &p32, b: &p32) -> f32 {
-    let mut sum: f32 = 0.0;
-    let mut temp: f32;
-    for i in 0..FEATURE_SIZE {
-        temp = a.point[i].unwrap() - b.point[i].unwrap();
-        sum += temp * temp;
-    }
-    sum
+
+
+    // let a_host = [1.0f32, 2.0, 3.0, 4.0];
+    // let b_host = [1.0f32, 2.0, 3.0, 4.0];
+    let a_host = a.point
+        .iter()
+        .filter_map(|point_option| point_option.clone())
+        .collect();
+    let b_host = b.point
+        .iter()
+        .filter_map(|point_option| point_option.clone())
+        .collect();
+    let mut c_host = [0.0f32; K];
+
+    let a_dev = dev.htod_sync_copy(&a_host).unwrap();
+    let b_dev = dev.htod_sync_copy(&b_host).unwrap();
+    let mut c_dev = dev.htod_sync_copy(&c_host).unwrap();
+
+    // println!("Copied in {:?}", start.elapsed());
+
+    let cfg = LaunchConfig {
+        block_dim: (1, 1, 1),
+        grid_dim: (1, 1, 1),
+        shared_mem_bytes: 0,
+    };
+    unsafe { f.launch(cfg, (&a_dev, &b_dev, &mut c_dev, K)) }.unwrap();
+
+    dev.dtoh_sync_copy_into(&c_dev, &mut c_host).unwrap();
+
+    c_host.iter().sum()
+
+    // let mut sum: f32 = 0.0;
+    // let mut temp: f32;
+    // for i in 0..FEATURE_SIZE {
+    //     temp = a.point[i].unwrap() - b.point[i].unwrap();
+    //     sum += temp * temp;
+    // }
+    // sum
 }
 
 fn evalulate_accuracy(target: &[p32; TESTSET_SIZE],
@@ -252,7 +276,18 @@ fn load_dataset(path: &str) -> [p32; DATASET_SIZE] {
     dataset 
 }
 
-fn main() {
+fn main() -> Result<(), DriverError> {
+    let start = std::time::Instant::now();
+
+    let ptx = compile_ptx(PTX_SRC).unwrap();
+    println!("Compilation succeeded in {:?}", start.elapsed());
+
+    let dev = CudaDevice::new(0)?;
+    println!("Built in {:?}", start.elapsed());
+
+    dev.load_ptx(ptx, "matmul", &["matmul"])?;
+    let f = dev.get_func("matmul", "matmul").unwrap();
+    println!("Loaded in {:?}", start.elapsed());
     // let path_to_dataset = "/Users/rb/School/CS217/knn_cuda/assets/sample_train.csv";
     // let path_to_testset = "/Users/rb/School/CS217/knn_cuda/assets/sample_test.csv";
     let path_to_dataset = "/home/cemaj/rbandyopadhyay/cs217/final-proj/cudarc/assets/heart_data_norm.csv";
@@ -271,4 +306,5 @@ fn main() {
     // evaluate the accuracy
     let accuracy = evalulate_accuracy(&testset, &guesses);
     println!("Accuracy: {}", accuracy);
+    Ok(())
 }
