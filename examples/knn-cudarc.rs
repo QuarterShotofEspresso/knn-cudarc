@@ -232,8 +232,13 @@ fn load_dataset(path: &str) -> [p32; DATASET_SIZE] {
 fn main() {
     // let path_to_dataset = "/Users/rb/School/CS217/knn_cuda/assets/sample_train.csv";
     // let path_to_testset = "/Users/rb/School/CS217/knn_cuda/assets/sample_test.csv";
-    let path_to_dataset = "/Users/rb/School/CS217/knn_cuda/assets/heart_data_norm.csv";
-    let path_to_testset = "/Users/rb/School/CS217/knn_cuda/assets/heart_data_norm_test.csv";
+    let path_to_dataset = "/home/cemaj/rbandyopadhyay/cs217/final-proj/cudarc/assets/heart_data_norm.csv";
+    let path_to_testset = "/home/cemaj/rbandyopadhyay/cs217/final-proj/cudarc/assets/heart_data_norm_test.csv";
+    ///home/cemaj/rbandyopadhyay/cs217/final-proj/cudarc/assets/heart_data_norm.csv
+    ///home/cemaj/rbandyopadhyay/cs217/final-proj/cudarc/assets/heart_data_norm.csv.back
+    ///home/cemaj/rbandyopadhyay/cs217/final-proj/cudarc/assets/heart_data_norm_test.csv
+    ///home/cemaj/rbandyopadhyay/cs217/final-proj/cudarc/assets/sample_test.csv
+    ///home/cemaj/rbandyopadhyay/cs217/final-proj/cudarc/assets/sample_train.csv
     // Load dataset
     let dataset = load_dataset(path_to_dataset);
     // Load testvector set
