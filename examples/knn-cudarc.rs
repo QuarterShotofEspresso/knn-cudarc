@@ -4,6 +4,9 @@
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 
+use cudarc::driver::{CudaDevice, DriverError, LaunchAsync, LaunchConfig};
+use cudarc::nvrtc::compile_ptx;
+
 // Define the Feature Size
 // SMALL_TEST
 // const FEATURE_SIZE: usize = 2;
@@ -16,6 +19,26 @@ const TESTSET_SIZE: usize = 48;
 
 const K:            usize = 50;
 const TOTAL_CLASS:  usize = 2;
+
+
+const PTX_SRC: &str = "
+extern \"C\" __global__ void matmul(float* A, float* B, float* C, int N) {
+int ROW = blockIdx.y*blockDim.y+threadIdx.y;
+int COL = blockIdx.x*blockDim.x+threadIdx.x;
+
+float tmpSum = 0;
+
+if (ROW < N && COL < N) {
+    // each thread computes one element of the block sub-matrix
+    for (int i = 0; i < N; i++) {
+        tmpSum += A[ROW * N + i] * B[i * N + COL];
+    }
+}
+// printf(\"pos, (%d, %d) - N %d - value %d\\n\", ROW, COL, N, tmpSum);
+C[ROW * N + COL] = tmpSum;
+}
+";
+
 
 // Point structure
 #[derive(Clone, Copy)]
