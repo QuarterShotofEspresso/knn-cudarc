@@ -1,14 +1,20 @@
 // Author: Ratnodeep Bandyopadhyay
 // All rights reserved 2023.
-//
+
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 
 // Define the Feature Size
-const FEATURE_SIZE: usize = 2;
-const DATASET_SIZE: usize = 7;
-const TESTSET_SIZE: usize = 4;
-const K:            usize = 1;
+// SMALL_TEST
+// const FEATURE_SIZE: usize = 2;
+// const DATASET_SIZE: usize = 7;
+// const TESTSET_SIZE: usize = 4;
+// BIG TEST
+const FEATURE_SIZE: usize = 13;
+const DATASET_SIZE: usize = 255;
+const TESTSET_SIZE: usize = 48;
+
+const K:            usize = 50;
 const TOTAL_CLASS:  usize = 2;
 
 // Point structure
@@ -98,13 +104,13 @@ fn knn(target: &p32, dataset: &[p32; DATASET_SIZE]) -> p32 {
         class_counter[point.point.unwrap().class.unwrap() as usize] += 1;
     }
 
-    print!("selected_points: [");
-    for point in selected_points {
-        print!("{:?}, ", point.point.unwrap().point);
-    }
-    println!("]");
-    println!("{:?}", target.point);
-    println!("class_counter: {:?}\n", class_counter);
+    // print!("selected_points: [");
+    // for point in selected_points {
+    //     print!("{:?}, ", point.point.unwrap().point);
+    // }
+    // println!("]");
+    // println!("{:?}", target.point);
+    // println!("class_counter: {:?}\n", class_counter);
 
     let mut closest_class: usize = 0;
     for (class_idx, class_count) in class_counter.iter().enumerate() {
@@ -224,8 +230,10 @@ fn load_dataset(path: &str) -> [p32; DATASET_SIZE] {
 }
 
 fn main() {
-    let path_to_dataset = "/Users/rb/School/CS217/knn_cuda/assets/sample_train.csv";
-    let path_to_testset = "/Users/rb/School/CS217/knn_cuda/assets/sample_test.csv";
+    // let path_to_dataset = "/Users/rb/School/CS217/knn_cuda/assets/sample_train.csv";
+    // let path_to_testset = "/Users/rb/School/CS217/knn_cuda/assets/sample_test.csv";
+    let path_to_dataset = "/Users/rb/School/CS217/knn_cuda/assets/heart_data_norm.csv";
+    let path_to_testset = "/Users/rb/School/CS217/knn_cuda/assets/heart_data_norm_test.csv";
     // Load dataset
     let dataset = load_dataset(path_to_dataset);
     // Load testvector set
