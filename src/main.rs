@@ -5,10 +5,11 @@ use std::fs::File;
 use std::io::{BufRead, BufReader};
 
 // Define the Feature Size
-const FEATURE_SIZE: usize = 5;
-const DATASET_SIZE: usize = 5;
-const TESTSET_SIZE: usize = 1;
-const K:            usize = 4;
+const FEATURE_SIZE: usize = 2;
+const DATASET_SIZE: usize = 7;
+const TESTSET_SIZE: usize = 4;
+const K:            usize = 1;
+const TOTAL_CLASS:  usize = 2;
 
 // Point structure
 #[derive(Clone, Copy)]
@@ -54,13 +55,14 @@ impl PointDistance<'_> {
 }
 
 
+
 fn knn(target: &p32, dataset: &[p32; DATASET_SIZE]) -> p32 {
 
     let mut selected_points: [PointDistance; K] = [PointDistance::new(); K];
-    let mut class_counter: [u32; K] = [0; K];
+    let mut class_counter: [u32; TOTAL_CLASS] = [0; TOTAL_CLASS];
 
     for i in 0..DATASET_SIZE {
-        let mut replacement_idx: Option<usize> = None;
+        let mut replacement_idx: usize = 0;
 
         let test_distance_point = PointDistance {
             point: Some(&dataset[i]),
@@ -70,29 +72,25 @@ fn knn(target: &p32, dataset: &[p32; DATASET_SIZE]) -> p32 {
         };
 
 
-        // `get_idx: for point in selected_points {
         'inner: for i in 0..K {
-            match selected_points[i].distance {
-                None => {
-                    replacement_idx = Some(i);
-                    break 'inner;
-                },
-                Some(distance) => {
-                    if distance >= test_distance_point.distance.unwrap() {
-                        replacement_idx = Some(i);
-                    } else {
-                        // change nothing.
-                    }
+            if selected_points[i].distance.is_none() {
+                replacement_idx = i;
+                break 'inner;
+            } else if selected_points[i].distance.is_some() {
+                if selected_points[i].distance.unwrap() >= 
+                selected_points[replacement_idx].distance.unwrap() {
+                    replacement_idx = i;
                 }
             }
         }
 
-        match replacement_idx {
-            None => {/* no min was found */},
-            Some(idx) => {
-                // replace old min with new min
-                selected_points[idx] = test_distance_point;
-            },
+        if selected_points[replacement_idx].distance.is_none() {
+            selected_points[replacement_idx] = test_distance_point;
+        }
+        // replace old min with new min
+        else if test_distance_point.distance.unwrap() <= 
+        selected_points[replacement_idx].distance.unwrap() {
+            selected_points[replacement_idx] = test_distance_point;
         }
     }
 
@@ -100,11 +98,18 @@ fn knn(target: &p32, dataset: &[p32; DATASET_SIZE]) -> p32 {
         class_counter[point.point.unwrap().class.unwrap() as usize] += 1;
     }
 
-    let mut closest_class: u32 = 0;
-    for class in class_counter {
-        if class_counter[closest_class as usize] <= 
-        class_counter[class as usize] {
-            closest_class = class;
+    print!("selected_points: [");
+    for point in selected_points {
+        print!("{:?}, ", point.point.unwrap().point);
+    }
+    println!("]");
+    println!("{:?}", target.point);
+    println!("class_counter: {:?}\n", class_counter);
+
+    let mut closest_class: usize = 0;
+    for (class_idx, class_count) in class_counter.iter().enumerate() {
+        if class_counter[closest_class as usize] <= *class_count {
+            closest_class = class_idx;
         }
     }
 
@@ -168,7 +173,7 @@ fn load_testset(path: &str) -> [p32; TESTSET_SIZE] {
     // Read and parse each line of the CSV file
     for (pnt_idx, point) in reader.lines().enumerate() {
         for (val_idx, value) in point.unwrap().split(',').enumerate() {
-            if val_idx == 1 {
+            if val_idx == 0 {
                 match value.trim().parse::<u32>() {
                     Ok(value) => {
                         testset[pnt_idx].class = Some(value);
@@ -199,7 +204,7 @@ fn load_dataset(path: &str) -> [p32; DATASET_SIZE] {
     // Read and parse each line of the CSV file
     for (pnt_idx, point) in reader.lines().enumerate() {
         for (val_idx, value) in point.unwrap().split(',').enumerate() {
-            if val_idx == 1 {
+            if val_idx == 0 {
                 match value.trim().parse::<u32>() {
                     Ok(value) => {
                         dataset[pnt_idx].class = Some(value);
