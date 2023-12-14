@@ -161,8 +161,6 @@ fn knn_vec(target: &[p32; TESTSET_SIZE],
 fn euclidian(a: &p32, b: &p32, dev: &std::sync::Arc<CudaDevice>, f: &CudaFunction) -> f32 {
 
 
-    // let a_host = [1.0f32, 2.0, 3.0, 4.0];
-    // let b_host = [1.0f32, 2.0, 3.0, 4.0];
     let mut a_host: [f32; FEATURE_SIZE] = [0.0f32; FEATURE_SIZE];
     let mut b_host: [f32; FEATURE_SIZE] = [0.0f32; FEATURE_SIZE];
 
@@ -173,14 +171,6 @@ fn euclidian(a: &p32, b: &p32, dev: &std::sync::Arc<CudaDevice>, f: &CudaFunctio
         b_host[value_idx] = value.unwrap();
     }
 
-    // let a_host = a.point
-    //     .iter()
-    //     .filter_map(|point_option| point_option.clone())
-    //     .collect();
-    // let b_host = b.point
-    //     .iter()
-    //     .filter_map(|point_option| point_option.clone())
-    //     .collect();
     let mut c_host = [0.0f32; FEATURE_SIZE];
 
     let a_dev = (*dev).htod_sync_copy(&a_host).unwrap();
